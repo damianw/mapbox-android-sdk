@@ -962,7 +962,8 @@ public class MapView extends ViewGroup
      * Set the minimum allowed zoom level, or pass null to use the minimum zoom level from the tile
      * provider.
      */
-    public void setMinZoomLevel(float zoomLevel) {
+    public void setMinZoomLevel(Float zoomLevel) {
+        if (zoomLevel == null) zoomLevel = mTileProvider.getMinimumZoomLevel();
         mRequestedMinimumZoomLevel = mMinimumZoomLevel = zoomLevel;
         updateMinZoomLevel();
     }
@@ -971,7 +972,8 @@ public class MapView extends ViewGroup
      * Set the maximum allowed zoom level, or pass null to use the maximum zoom level from the tile
      * provider.
      */
-    public void setMaxZoomLevel(float zoomLevel) {
+    public void setMaxZoomLevel(Float zoomLevel) {
+        if (zoomLevel == null) zoomLevel = mTileProvider.getMaximumZoomLevel();
         mMaximumZoomLevel = zoomLevel;
     }
 
