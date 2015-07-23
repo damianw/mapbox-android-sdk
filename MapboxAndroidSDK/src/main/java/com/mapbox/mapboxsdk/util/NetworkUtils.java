@@ -8,16 +8,34 @@ package com.mapbox.mapboxsdk.util;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+
 import com.squareup.okhttp.Cache;
 import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.OkUrlFactory;
-import javax.net.ssl.SSLSocketFactory;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+import javax.net.ssl.SSLSocketFactory;
+
 public class NetworkUtils {
+
+    public static OkHttpClient primaryClient = new OkHttpClient();
+    public static OkHttpClient secondaryClient = new OkHttpClient();
+
+    public static OkHttpClient getClient() {
+        return primaryClient;
+    }
+
+    public static void setClient(OkHttpClient client) {
+        if (client != null) {
+            primaryClient = client.clone(); // shallow copy
+            secondaryClient = client.clone();
+        }
+    }
+
     public static boolean isNetworkAvailable(Context context) {
         ConnectivityManager connectivityManager =
                 (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -34,9 +52,12 @@ public class NetworkUtils {
     }
 
     public static HttpURLConnection getHttpURLConnection(final URL url, final Cache cache, final SSLSocketFactory sslSocketFactory) {
-        OkHttpClient client = new OkHttpClient();
+        final OkHttpClient client;
         if (cache != null) {
+            client = secondaryClient;
             client.setCache(cache);
+        } else {
+            client = primaryClient;
         }
         if (sslSocketFactory != null) {
             client.setSslSocketFactory(sslSocketFactory);
