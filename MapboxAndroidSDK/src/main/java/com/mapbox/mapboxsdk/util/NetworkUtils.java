@@ -10,20 +10,22 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 
 import com.squareup.okhttp.Cache;
+import com.squareup.okhttp.Call;
 import com.squareup.okhttp.OkHttpClient;
-import com.squareup.okhttp.OkUrlFactory;
+import com.squareup.okhttp.Request;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.HttpURLConnection;
 import java.net.URL;
 
 import javax.net.ssl.SSLSocketFactory;
 
 public class NetworkUtils {
 
-    public static OkHttpClient primaryClient = new OkHttpClient();
-    public static OkHttpClient secondaryClient = new OkHttpClient();
+    public static final String USER_AGENT = MapboxUtils.getUserAgent();
+
+    private static OkHttpClient primaryClient = new OkHttpClient();
+    private static OkHttpClient secondaryClient = new OkHttpClient();
 
     public static OkHttpClient getClient() {
         return primaryClient;
@@ -43,28 +45,30 @@ public class NetworkUtils {
         return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
 
-    public static HttpURLConnection getHttpURLConnection(final URL url) {
-        return getHttpURLConnection(url, null, null);
+    public static Call httpGet(final URL url) {
+        return httpGet(url, null, null);
     }
 
-    public static HttpURLConnection getHttpURLConnection(final URL url, final Cache cache) {
-        return getHttpURLConnection(url, cache, null);
+    public static Call httpGet(final URL url, final Cache cache) {
+        return httpGet(url, cache, null);
     }
 
-    public static HttpURLConnection getHttpURLConnection(final URL url, final Cache cache, final SSLSocketFactory sslSocketFactory) {
+    public static Call httpGet(final URL url, final Cache cache, final SSLSocketFactory sslSocketFactory) {
         final OkHttpClient client;
         if (cache != null) {
             client = secondaryClient;
             client.setCache(cache);
+            if (sslSocketFactory != null) {
+                client.setSslSocketFactory(sslSocketFactory);
+            }
         } else {
             client = primaryClient;
         }
-        if (sslSocketFactory != null) {
-            client.setSslSocketFactory(sslSocketFactory);
-        }
-        HttpURLConnection connection = new OkUrlFactory(client).open(url);
-        connection.setRequestProperty("User-Agent", MapboxUtils.getUserAgent());
-        return connection;
+        final Request request = new Request.Builder().addHeader("User-Agent", USER_AGENT)
+          .get()
+          .url(url)
+          .build();
+        return client.newCall(request);
     }
 
     public static Cache getCache(final File cacheDir, final int maxSize) throws IOException {

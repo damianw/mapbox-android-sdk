@@ -6,17 +6,21 @@ import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.Environment;
 import android.util.Log;
+
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.util.BitmapUtils;
 import com.mapbox.mapboxsdk.util.MapboxUtils;
 import com.mapbox.mapboxsdk.util.NetworkUtils;
 import com.mapbox.mapboxsdk.util.constants.UtilConstants;
+import com.squareup.okhttp.Call;
+import com.squareup.okhttp.Response;
+
 import java.io.File;
 import java.io.IOException;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
+
 import uk.co.senab.bitmapcache.BitmapLruCache;
 import uk.co.senab.bitmapcache.CacheableBitmapDrawable;
 
@@ -210,11 +214,12 @@ public class Icon implements MapboxConstants {
                     if (UtilConstants.DEBUGMODE) {
                         Log.d(TAG, "Maki url to load = '" + this.url + "'");
                     }
-                    HttpURLConnection connection = NetworkUtils.getHttpURLConnection(new URL(url));
+                    final Call call = NetworkUtils.httpGet(new URL(url));
+                    final Response response = call.execute();
                     // Note, sIconCache cannot be null..
 
                     BitmapFactory.Options opts = BitmapUtils.getBitmapOptions(context.getResources().getDisplayMetrics());
-                    result = sIconCache.put(this.url, connection.getInputStream(), opts);
+                    result = sIconCache.put(this.url, response.body().byteStream(), opts);
                 } catch (IOException e) {
                     Log.e(TAG, "doInBackground: Unable to fetch icon from: " + this.url);
                 }

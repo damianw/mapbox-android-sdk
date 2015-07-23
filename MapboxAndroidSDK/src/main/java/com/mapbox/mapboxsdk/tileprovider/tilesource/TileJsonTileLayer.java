@@ -1,20 +1,25 @@
 package com.mapbox.mapboxsdk.tileprovider.tilesource;
 
 import android.os.AsyncTask;
+import android.support.annotation.NonNull;
 import android.util.Log;
+
 import com.mapbox.mapboxsdk.geometry.BoundingBox;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.util.NetworkUtils;
 import com.mapbox.mapboxsdk.util.constants.UtilConstants;
 import com.squareup.okhttp.Cache;
+import com.squareup.okhttp.Call;
+import com.squareup.okhttp.Response;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.UUID;
 
@@ -154,26 +159,16 @@ public class TileJsonTileLayer extends WebSourceTileLayer {
     }
 
     class RetrieveJSONTask extends AsyncTask<String, Void, JSONObject> {
-        protected JSONObject doInBackground(String... urls) {
-            InputStream in = null;
+        protected JSONObject doInBackground(@NonNull String... urls) {
             try {
-                URL url = new URL(urls[0]);
-                HttpURLConnection connection = NetworkUtils.getHttpURLConnection(url, cache);
-                in = connection.getInputStream();
-                byte[] response = readFully(in);
-                String result = new String(response, "UTF-8");
+                final URL url = new URL(urls[0]);
+                final Call call = NetworkUtils.httpGet(url, cache);
+                final Response response = call.execute();
+                final String result = response.body().string();
                 return new JSONObject(result);
             } catch (Exception e) {
                 e.printStackTrace();
                 return null;
-            } finally {
-                try {
-                    if (in != null) {
-                        in.close();
-                    }
-                } catch (IOException e) {
-                    Log.e(TAG, "Error closing InputStream: " + e.toString());
-                }
             }
         }
     }

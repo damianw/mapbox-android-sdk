@@ -8,25 +8,24 @@ import android.database.sqlite.SQLiteDatabase;
 import android.os.AsyncTask;
 import android.text.TextUtils;
 import android.util.Log;
+
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.geometry.CoordinateRegion;
 import com.mapbox.mapboxsdk.util.AppUtils;
-import com.mapbox.mapboxsdk.util.DataLoadingUtils;
 import com.mapbox.mapboxsdk.util.MapboxUtils;
 import com.mapbox.mapboxsdk.util.NetworkUtils;
+import com.squareup.okhttp.Call;
+import com.squareup.okhttp.Response;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
+
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Hashtable;
@@ -99,49 +98,24 @@ public class OfflineMapDownloader implements MapboxConstants {
             AsyncTask<String, Void, Void> task = new AsyncTask<String, Void, Void>() {
                 @Override
                 protected Void doInBackground(String... params) {
-                    HttpURLConnection conn = null;
-                    String url = params[0];
+                    final String url = params[0];
                     try {
-                        conn = NetworkUtils.getHttpURLConnection(new URL(url));
-                        Log.d(TAG, "URL to download = " + conn.getURL().toString());
-                        conn.setConnectTimeout(60000);
-                        conn.connect();
-                        int rc = conn.getResponseCode();
+                        final URL endpoint = new URL(url);
+                        Log.d(TAG, "URL to download = " + endpoint.toString());
+                        final Call call = NetworkUtils.httpGet(endpoint);
+                        final Response response = call.execute();
+                        int rc = response.code();
                         if (rc != HttpURLConnection.HTTP_OK) {
-                            String msg = String.format(MAPBOX_LOCALE, "HTTP Error connection.  Response Code = %d for url = %s", rc, conn.getURL().toString());
+                            String msg = String.format(MAPBOX_LOCALE, "HTTP Error connection.  Response Code = %d for url = %s", rc, response.request().url().toString());
                             Log.w(TAG, msg);
                             notifyDelegateOfHTTPStatusError(rc, params[0]);
                             throw new IOException(msg);
                         }
 
-                        ByteArrayOutputStream bais = new ByteArrayOutputStream();
-                        InputStream is = null;
-                        try {
-                            is = conn.getInputStream();
-                            // Read 4K at a time
-                            byte[] byteChunk = new byte[4096];
-                            int n;
-
-                            while ((n = is.read(byteChunk)) > 0) {
-                                bais.write(byteChunk, 0, n);
-                            }
-                        } catch (IOException e) {
-                            Log.e(TAG, String.format(MAPBOX_LOCALE, "Failed while reading bytes from %s: %s", conn.getURL().toString(), e.getMessage()));
-                            e.printStackTrace();
-                        } finally {
-                            if (is != null) {
-                                is.close();
-                            }
-                            conn.disconnect();
-                        }
-                        sqliteSaveDownloadedData(bais.toByteArray(), url);
+                        sqliteSaveDownloadedData(response.body().bytes(), url);
                     } catch (IOException e) {
                         Log.e(TAG, e.getMessage());
                         e.printStackTrace();
-                    } finally {
-                        if (conn != null) {
-                            conn.disconnect();
-                        }
                     }
 
                     startDownloadTask();
@@ -695,15 +669,13 @@ public class OfflineMapDownloader implements MapboxConstants {
                 @Override
                 protected Void doInBackground(Void... params) {
                     try {
-                        HttpURLConnection conn = NetworkUtils.getHttpURLConnection(new URL(geojson));
-                        conn.setConnectTimeout(60000);
-                        conn.connect();
-                        if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                        final Call call = NetworkUtils.httpGet(new URL(geojson));
+                        final Response response = call.execute();
+                        if (response.code() != HttpURLConnection.HTTP_OK) {
                             throw new IOException();
                         }
 
-                        BufferedReader rd = new BufferedReader(new InputStreamReader(conn.getInputStream(), Charset.forName("UTF-8")));
-                        String jsonText = DataLoadingUtils.readAll(rd);
+                        String jsonText = response.body().string();
 
                         // The marker geojson was successfully retrieved, so parse it for marker icons. Note that we shouldn't
                         // try to save it here, because it may already be in the download queue and saving it twice will mess

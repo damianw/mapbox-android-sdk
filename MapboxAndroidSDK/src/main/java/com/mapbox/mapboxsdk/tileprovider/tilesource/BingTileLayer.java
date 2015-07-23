@@ -1,17 +1,18 @@
 package com.mapbox.mapboxsdk.tileprovider.tilesource;
 
 import android.os.AsyncTask;
+
 import com.mapbox.mapboxsdk.tileprovider.MapTile;
 import com.mapbox.mapboxsdk.util.NetworkUtils;
+import com.squareup.okhttp.Call;
+import com.squareup.okhttp.Response;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
-import java.io.BufferedReader;
+
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.Reader;
-import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.Charset;
 
 public class BingTileLayer extends WebSourceTileLayer {
 
@@ -115,11 +116,9 @@ public class BingTileLayer extends WebSourceTileLayer {
                     }
                     String url = String.format(BASE_URL_PATTERN, mStyle, mKey);
 
-                    HttpURLConnection connection = NetworkUtils.getHttpURLConnection(new URL(url));
-                    BufferedReader rd = new BufferedReader(
-                            new InputStreamReader(connection.getInputStream(), Charset.forName("UTF-8")));
-
-                    String content = readAll(rd);
+                    final Call call = NetworkUtils.httpGet(new URL(url));
+                    final Response response = call.execute();
+                    final String content = response.body().string();
 
                     String metadataUrl = getInstanceFromJSON(content).replace("{culture}", "en");
 

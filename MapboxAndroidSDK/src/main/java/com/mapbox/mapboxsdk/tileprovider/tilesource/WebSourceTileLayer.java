@@ -14,9 +14,12 @@ import com.mapbox.mapboxsdk.tileprovider.modules.MapTileDownloader;
 import com.mapbox.mapboxsdk.util.NetworkUtils;
 import com.mapbox.mapboxsdk.views.util.TileLoadedListener;
 import com.mapbox.mapboxsdk.views.util.TilesLoadedListener;
-import java.net.HttpURLConnection;
+import com.squareup.okhttp.Call;
+import com.squareup.okhttp.Response;
+
 import java.net.URL;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import uk.co.senab.bitmapcache.CacheableBitmapDrawable;
 
 /**
@@ -190,8 +193,9 @@ public class WebSourceTileLayer extends TileLayer implements MapboxConstants {
         }
 
         try {
-            HttpURLConnection connection = NetworkUtils.getHttpURLConnection(new URL(url));
-            Bitmap bitmap = BitmapFactory.decodeStream(connection.getInputStream());
+            final Call call = NetworkUtils.httpGet(new URL(url));
+            final Response response = call.execute();
+            Bitmap bitmap = BitmapFactory.decodeStream(response.body().byteStream());
             if (bitmap != null) {
                 aCache.putTileInMemoryCache(mapTile, bitmap);
             }
