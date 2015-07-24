@@ -105,12 +105,14 @@ public class WebSourceTileLayer extends TileLayer implements MapboxConstants {
     private static Bitmap composeBitmaps(final Iterable<Bitmap> bitmaps) {
         final Iterator<Bitmap> iterator = bitmaps.iterator();
         if (!iterator.hasNext()) { return null; }
-        Bitmap result = iterator.next();
+        final Bitmap first = iterator.next();
+        final Bitmap result = first.copy(first.getConfig(), true);
+        //first.recycle();
         Canvas canvas = new Canvas(result);
         while (iterator.hasNext()) {
             final Bitmap next = iterator.next();
             canvas.drawBitmap(next, 0, 0, compositePaint);
-            next.recycle();
+            //next.recycle();
         }
         return result;
     }
