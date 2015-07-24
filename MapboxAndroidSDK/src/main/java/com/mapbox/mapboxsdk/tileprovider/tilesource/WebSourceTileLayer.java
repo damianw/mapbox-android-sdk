@@ -157,16 +157,7 @@ public class WebSourceTileLayer extends TileLayer implements MapboxConstants {
 
                 //null pointer checking
                 if (result != null) {
-                    int resultWidth = result.getIntrinsicWidth();
-                    int resultHeight = result.getIntrinsicHeight();
-
-                    //convert the drawable updated in onTileLoaded callback to a bitmap
-                    Bitmap bitmapToCache = Bitmap.createBitmap(resultWidth, resultHeight, Bitmap.Config.ARGB_8888);
-                    Canvas canvas = new Canvas(bitmapToCache);
-                    result.setBounds(0, 0, resultWidth, resultHeight);
-                    result.draw(canvas);
-
-                    cache.putTileBitmap(aTile, bitmapToCache);
+                    cache.putTileBitmap(aTile, result.getBitmap());
                 }
             } else {
                 if (resultBitmap != null) {
