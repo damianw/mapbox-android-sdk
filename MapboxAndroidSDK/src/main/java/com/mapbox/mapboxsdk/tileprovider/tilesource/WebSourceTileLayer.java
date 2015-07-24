@@ -21,6 +21,7 @@ import com.squareup.okhttp.Response;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -101,10 +102,17 @@ public class WebSourceTileLayer extends TileLayer implements MapboxConstants {
 
     private static final Paint compositePaint = new Paint(Paint.FILTER_BITMAP_FLAG);
 
-    private Bitmap compositeBitmaps(final Bitmap source, Bitmap dest) {
-        Canvas canvas = new Canvas(dest);
-        canvas.drawBitmap(source, 0, 0, compositePaint);
-        return dest;
+    private static Bitmap composeBitmaps(final Iterable<Bitmap> bitmaps) {
+        final Iterator<Bitmap> iterator = bitmaps.iterator();
+        if (!iterator.hasNext()) { return null; }
+        Bitmap result = iterator.next();
+        Canvas canvas = new Canvas(result);
+        while (iterator.hasNext()) {
+            final Bitmap next = iterator.next();
+            canvas.drawBitmap(next, 0, 0, compositePaint);
+            next.recycle();
+        }
+        return result;
     }
 
     @Override
@@ -207,10 +215,6 @@ public class WebSourceTileLayer extends TileLayer implements MapboxConstants {
         } finally {
             activeThreads.decrementAndGet();
         }
-        Bitmap result = bitmaps.poll();
-        for (Bitmap bitmap : bitmaps) {
-            compositeBitmaps(bitmap, result);
-        }
-        return result;
+        return composeBitmaps(bitmaps);
     }
 }
