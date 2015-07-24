@@ -8,7 +8,6 @@ import com.mapbox.mapboxsdk.geometry.BoundingBox;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.util.NetworkUtils;
 import com.mapbox.mapboxsdk.util.constants.UtilConstants;
-import com.squareup.okhttp.Cache;
 import com.squareup.okhttp.Call;
 import com.squareup.okhttp.Response;
 
@@ -17,11 +16,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.util.UUID;
 
 /**
  * A type of tile layer that loads tiles from the internet and metadata about itself
@@ -32,18 +29,9 @@ public class TileJsonTileLayer extends WebSourceTileLayer {
     private static final String TAG = "TileJsonTileLayer";
 
     private JSONObject tileJSON;
-    private Cache cache;
 
     public TileJsonTileLayer(final String pId, final String url, final boolean enableSSL) {
         super(pId, url, enableSSL);
-
-        File cacheDir =
-                new File(System.getProperty("java.io.tmpdir"), UUID.randomUUID().toString());
-        try {
-            cache = NetworkUtils.getCache(cacheDir, 1024);
-        } catch (Exception e) {
-            Log.e(TAG, "Cache creation failed.", e);
-        }
 
         String jsonURL = this.getBrandedJSONURL();
         if (jsonURL != null) {
@@ -162,7 +150,7 @@ public class TileJsonTileLayer extends WebSourceTileLayer {
         protected JSONObject doInBackground(@NonNull String... urls) {
             try {
                 final URL url = new URL(urls[0]);
-                final Call call = NetworkUtils.httpGet(url, cache);
+                final Call call = NetworkUtils.httpGet(url);
                 final Response response = call.execute();
                 final String result = response.body().string();
                 return new JSONObject(result);

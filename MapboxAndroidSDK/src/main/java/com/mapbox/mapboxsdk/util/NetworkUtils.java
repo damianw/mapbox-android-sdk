@@ -9,32 +9,26 @@ import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 
-import com.squareup.okhttp.Cache;
+import com.squareup.okhttp.CacheControl;
 import com.squareup.okhttp.Call;
 import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.Request;
 
-import java.io.File;
-import java.io.IOException;
 import java.net.URL;
-
-import javax.net.ssl.SSLSocketFactory;
 
 public class NetworkUtils {
 
     public static final String USER_AGENT = MapboxUtils.getUserAgent();
 
-    private static OkHttpClient primaryClient = new OkHttpClient();
-    private static OkHttpClient secondaryClient = new OkHttpClient();
+    private static OkHttpClient client = new OkHttpClient();
 
     public static OkHttpClient getClient() {
-        return primaryClient;
+        return client;
     }
 
     public static void setClient(OkHttpClient client) {
         if (client != null) {
-            primaryClient = client.clone(); // shallow copy
-            secondaryClient = client.clone();
+            NetworkUtils.client = client.clone(); // shallow copy
         }
     }
 
@@ -46,32 +40,16 @@ public class NetworkUtils {
     }
 
     public static Call httpGet(final URL url) {
-        return httpGet(url, null, null);
+        return httpGet(url, null);
     }
 
-    public static Call httpGet(final URL url, final Cache cache) {
-        return httpGet(url, cache, null);
-    }
-
-    public static Call httpGet(final URL url, final Cache cache, final SSLSocketFactory sslSocketFactory) {
-        final OkHttpClient client;
-        if (cache != null) {
-            client = secondaryClient;
-            client.setCache(cache);
-            if (sslSocketFactory != null) {
-                client.setSslSocketFactory(sslSocketFactory);
-            }
-        } else {
-            client = primaryClient;
-        }
-        final Request request = new Request.Builder().addHeader("User-Agent", USER_AGENT)
+    public static Call httpGet(final URL url, final CacheControl cacheControl) {
+        final Request.Builder builder = new Request.Builder()
+          .addHeader("User-Agent", USER_AGENT)
           .get()
-          .url(url)
-          .build();
-        return client.newCall(request);
+          .url(url);
+        if (cacheControl != null) { builder.cacheControl(cacheControl); }
+        return client.newCall(builder.build());
     }
 
-    public static Cache getCache(final File cacheDir, final int maxSize) throws IOException {
-        return new Cache(cacheDir, maxSize);
-    }
 }
