@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Paint;
 import android.text.TextUtils;
 import android.util.Log;
+
 import com.cocoahero.android.geojson.Feature;
 import com.cocoahero.android.geojson.FeatureCollection;
 import com.cocoahero.android.geojson.GeoJSON;
@@ -18,8 +19,12 @@ import com.mapbox.mapboxsdk.overlay.Icon;
 import com.mapbox.mapboxsdk.overlay.Marker;
 import com.mapbox.mapboxsdk.overlay.PathOverlay;
 import com.mapbox.mapboxsdk.util.constants.UtilConstants;
+import com.squareup.okhttp.Call;
+import com.squareup.okhttp.Response;
+
 import org.json.JSONArray;
 import org.json.JSONException;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,7 +55,9 @@ public class DataLoadingUtils {
 
         InputStream is;
         if (url.toLowerCase(Locale.US).indexOf("http") == 0) {
-            is = NetworkUtils.getHttpURLConnection(new URL(url)).getInputStream();
+            final Call call = NetworkUtils.httpGet(new URL(url));
+            final Response response = call.execute();
+            is = response.body().byteStream();
         } else {
             is = new URL(url).openStream();
         }

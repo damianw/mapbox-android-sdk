@@ -3,6 +3,7 @@ package com.mapbox.mapboxsdk.tileprovider.modules;
 import android.graphics.drawable.Drawable;
 import android.os.Process;
 import android.util.Log;
+
 import com.mapbox.mapboxsdk.geometry.BoundingBox;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.tileprovider.MapTile;
@@ -10,12 +11,13 @@ import com.mapbox.mapboxsdk.tileprovider.MapTileRequestState;
 import com.mapbox.mapboxsdk.tileprovider.constants.TileLayerConstants;
 import com.mapbox.mapboxsdk.tileprovider.tilesource.ITileLayer;
 import com.mapbox.mapboxsdk.util.BitmapUtils;
+
 import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+
 import uk.co.senab.bitmapcache.CacheableBitmapDrawable;
 
 /**
@@ -113,9 +115,8 @@ public abstract class MapTileModuleLayerBase implements TileLayerConstants {
 
     private final ExecutorService mExecutor;
 
-    protected final Object mQueueLockObject = new Object();
     protected final HashMap<MapTile, MapTileRequestState> mWorking;
-    protected final LinkedHashMap<MapTile, MapTileRequestState> mPending;
+    protected final ConcurrentHashMap<MapTile, MapTileRequestState> mPending;
 
     public MapTileRequestState popFirstPending() {
         for (MapTile tile : mPending.keySet()) {
@@ -138,41 +139,15 @@ public abstract class MapTileModuleLayerBase implements TileLayerConstants {
         mExecutor = Executors.newFixedThreadPool(pThreadPoolSize,
                 new ConfigurablePriorityThreadFactory(Thread.NORM_PRIORITY, getThreadGroupName()));
 
-        mWorking = new HashMap<MapTile, MapTileRequestState>();
-        mPending =
-                new LinkedHashMap<MapTile, MapTileRequestState>(pPendingQueueSize + 2, 0.1f, true) {
-
-                    private static final long serialVersionUID = 6455337315681858866L;
-
-                    @Override
-                    protected boolean removeEldestEntry(
-                            final Map.Entry<MapTile, MapTileRequestState> pEldest) {
-                        while (size() > pPendingQueueSize) {
-                            MapTileRequestState state = popFirstPending();
-                            state.getCallback().mapTileRequestFailed(state);
-                        }
-                        return false;
-                    }
-                };
+        mWorking = new HashMap<>();
+        mPending = new ConcurrentHashMap<>(pPendingQueueSize + 2, 0.1f);
     }
 
     /**
      * Loads a map tile asynchronously, adding it to the queue and calling getTileLoader.
      */
     public void loadMapTileAsync(final MapTileRequestState pState) {
-        synchronized (mQueueLockObject) {
-/*
-                Log.d(TAG, "MapTileModuleLayerBase.loadMaptileAsync() on provider: " + getName() + " for tile: " + pState.getMapTile());
-                if (mPending.containsKey(pState.getMapTile())) {
-                    Log.d(TAG, "MapTileModuleLayerBase.loadMaptileAsync() tile already exists in request queue for modular provider. Moving to front of queue.");
-                } else {
-                    Log.d(TAG, "MapTileModuleLayerBase.loadMaptileAsync() adding tile to request queue for modular provider.");
-                }
-*/
-            // this will put the tile in the queue, or move it to the front of
-            // the queue if it's already present
-            mPending.put(pState.getMapTile(), pState);
-        }
+        mPending.put(pState.getMapTile(), pState);
 
         try {
             mExecutor.execute(getTileLoader());
@@ -185,10 +160,8 @@ public abstract class MapTileModuleLayerBase implements TileLayerConstants {
      * Clears both pending and working queues.
      */
     protected void clearQueue() {
-        synchronized (mQueueLockObject) {
-            mPending.clear();
-            mWorking.clear();
-        }
+        mPending.clear();
+        mWorking.clear();
     }
 
     /**
@@ -203,16 +176,14 @@ public abstract class MapTileModuleLayerBase implements TileLayerConstants {
      * Marks a given map tile as neither being downloaded or worked on.
      */
     void removeTileFromQueues(final MapTile mapTile) {
-        synchronized (mQueueLockObject) {
-            if (DEBUG_TILE_PROVIDERS) {
-                Log.d(TAG, "MapTileModuleLayerBase.removeTileFromQueues() on provider: "
-                        + getName()
-                        + " for tile: "
-                        + mapTile);
-            }
-            mPending.remove(mapTile);
-            mWorking.remove(mapTile);
+        if (DEBUG_TILE_PROVIDERS) {
+            Log.d(TAG, "MapTileModuleLayerBase.removeTileFromQueues() on provider: "
+              + getName()
+              + " for tile: "
+              + mapTile);
         }
+        mPending.remove(mapTile);
+        mWorking.remove(mapTile);
     }
 
     /**
@@ -241,23 +212,20 @@ public abstract class MapTileModuleLayerBase implements TileLayerConstants {
         }
 
         protected MapTileRequestState nextTile() {
-
-            synchronized (mQueueLockObject) {
-                // get the most recently accessed tile
-                // - the last item in the iterator that's not already being
-                // processed
-                MapTileRequestState state = popFirstPending();
-                if (state != null) {
-                    mWorking.put(state.getMapTile(), state);
-                    if (DEBUG_TILE_PROVIDERS) {
-                        Log.d(TAG, "TileLoader.nextTile() on provider: "
-                                + getName()
-                                + " adding tile to working queue: "
-                                + state.getMapTile());
-                    }
+            // get the most recently accessed tile
+            // - the last item in the iterator that's not already being
+            // processed
+            MapTileRequestState state = popFirstPending();
+            if (state != null) {
+                mWorking.put(state.getMapTile(), state);
+                if (DEBUG_TILE_PROVIDERS) {
+                    Log.d(TAG, "TileLoader.nextTile() on provider: "
+                      + getName()
+                      + " adding tile to working queue: "
+                      + state.getMapTile());
                 }
-                return state;
             }
+            return state;
         }
 
         /**

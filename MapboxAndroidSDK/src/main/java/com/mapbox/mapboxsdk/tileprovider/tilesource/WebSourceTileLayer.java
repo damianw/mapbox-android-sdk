@@ -14,9 +14,18 @@ import com.mapbox.mapboxsdk.tileprovider.modules.MapTileDownloader;
 import com.mapbox.mapboxsdk.util.NetworkUtils;
 import com.mapbox.mapboxsdk.views.util.TileLoadedListener;
 import com.mapbox.mapboxsdk.views.util.TilesLoadedListener;
-import java.net.HttpURLConnection;
+import com.squareup.okhttp.Callback;
+import com.squareup.okhttp.Request;
+import com.squareup.okhttp.Response;
+
+import java.io.IOException;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import uk.co.senab.bitmapcache.CacheableBitmapDrawable;
 
 /**
@@ -93,10 +102,19 @@ public class WebSourceTileLayer extends TileLayer implements MapboxConstants {
 
     private static final Paint compositePaint = new Paint(Paint.FILTER_BITMAP_FLAG);
 
-    private Bitmap compositeBitmaps(final Bitmap source, Bitmap dest) {
-        Canvas canvas = new Canvas(dest);
-        canvas.drawBitmap(source, 0, 0, compositePaint);
-        return dest;
+    private static Bitmap composeBitmaps(final Iterable<Bitmap> bitmaps) {
+        final Iterator<Bitmap> iterator = bitmaps.iterator();
+        if (!iterator.hasNext()) { return null; }
+        final Bitmap first = iterator.next();
+        final Bitmap result = first.copy(first.getConfig(), true);
+        //first.recycle();
+        Canvas canvas = new Canvas(result);
+        while (iterator.hasNext()) {
+            final Bitmap next = iterator.next();
+            canvas.drawBitmap(next, 0, 0, compositePaint);
+            //next.recycle();
+        }
+        return result;
     }
 
     @Override
@@ -119,17 +137,8 @@ public class WebSourceTileLayer extends TileLayer implements MapboxConstants {
                 if (listener != null) {
                     listener.onTilesLoadStarted();
                 }
-                for (final String url : urls) {
-                    Bitmap bitmap = getBitmapFromURL(aTile, url, cache);
-                    if (bitmap == null) {
-                        continue;
-                    }
-                    if (resultBitmap == null) {
-                        resultBitmap = bitmap;
-                    } else {
-                        resultBitmap = compositeBitmaps(bitmap, resultBitmap);
-                    }
-                }
+
+                resultBitmap = getComposedBitmapFromURLs(aTile, cache, urls);
 
                 if (checkThreadControl()) {
                     if (listener != null) {
@@ -148,16 +157,7 @@ public class WebSourceTileLayer extends TileLayer implements MapboxConstants {
 
                 //null pointer checking
                 if (result != null) {
-                    int resultWidth = result.getIntrinsicWidth();
-                    int resultHeight = result.getIntrinsicHeight();
-
-                    //convert the drawable updated in onTileLoaded callback to a bitmap
-                    Bitmap bitmapToCache = Bitmap.createBitmap(resultWidth, resultHeight, Bitmap.Config.ARGB_8888);
-                    Canvas canvas = new Canvas(bitmapToCache);
-                    result.setBounds(0, 0, resultWidth, resultHeight);
-                    result.draw(canvas);
-
-                    cache.putTileBitmap(aTile, bitmapToCache);
+                    cache.putTileBitmap(aTile, result.getBitmap());
                 }
             } else {
                 if (resultBitmap != null) {
@@ -171,36 +171,43 @@ public class WebSourceTileLayer extends TileLayer implements MapboxConstants {
         return null;
     }
 
-    /**
-     * Requests and returns a bitmap object from a given URL, using aCache to decode it.
-     *
-     *
-     * @param mapTile MapTile
-     * @param url the map tile url. should refer to a valid bitmap resource.
-     * @param aCache a cache, an instance of MapTileCache
-     * @return the tile if valid, otherwise null
-     */
-    public Bitmap getBitmapFromURL(MapTile mapTile, final String url, final MapTileCache aCache) {
-        // We track the active threads here, every exit point should decrement this value.
+    private Bitmap getComposedBitmapFromURLs(final MapTile mapTile, final MapTileCache cache, final String[] urls) {
+        final CountDownLatch latch = new CountDownLatch(urls.length);
+        final LinkedBlockingQueue<Bitmap> bitmaps = new LinkedBlockingQueue<>();
         activeThreads.incrementAndGet();
-
-        if (TextUtils.isEmpty(url)) {
-            activeThreads.decrementAndGet();
-            return null;
-        }
-
         try {
-            HttpURLConnection connection = NetworkUtils.getHttpURLConnection(new URL(url));
-            Bitmap bitmap = BitmapFactory.decodeStream(connection.getInputStream());
-            if (bitmap != null) {
-                aCache.putTileInMemoryCache(mapTile, bitmap);
+            for (final String url : urls) {
+                try {
+                    NetworkUtils.httpGet(new URL(url)).enqueue(new Callback() {
+                        @Override
+                        public void onFailure(Request request, IOException e) {
+                            Log.e(TAG, "Error downloading MapTile: " + url + ":" + e);
+                            latch.countDown();
+                        }
+
+                        @Override
+                        public void onResponse(Response response) throws IOException {
+                            try {
+                                final Bitmap bitmap = BitmapFactory.decodeStream(response.body().byteStream());
+                                if (bitmap != null) {
+                                    cache.putTileInMemoryCache(mapTile, bitmap);
+                                    bitmaps.offer(bitmap);
+                                }
+                            } finally {
+                                latch.countDown();
+                            }
+                        }
+                    });
+                } catch (final Throwable e) {
+                    Log.e(TAG, "Error starting MapTile download: " + url + ":" + e);
+                }
             }
-            return bitmap;
-        } catch (final Throwable e) {
-            Log.e(TAG, "Error downloading MapTile: " + url + ":" + e);
+            latch.await();
+        } catch(final InterruptedException e) {
+            Log.e(TAG, "Interrupted while downloading MapTiles: " + Arrays.toString(urls) + ":" + e);
         } finally {
             activeThreads.decrementAndGet();
         }
-        return null;
+        return composeBitmaps(bitmaps);
     }
 }
