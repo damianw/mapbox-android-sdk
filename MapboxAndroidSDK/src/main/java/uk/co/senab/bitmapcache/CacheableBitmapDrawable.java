@@ -252,7 +252,6 @@ public class CacheableBitmapDrawable extends BitmapDrawable {
                 // Record the current method stack just in case
                 mStackTraceWhenRecycled = new Throwable("Recycled Bitmap Method Stack");
 
-                getBitmap().recycle();
             } else {
                 if (Constants.DEBUG) {
                     Log.d(LOG_TAG,
