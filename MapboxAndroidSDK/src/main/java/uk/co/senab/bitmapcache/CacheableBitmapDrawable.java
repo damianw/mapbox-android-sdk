@@ -24,6 +24,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
+import java.util.ConcurrentModificationException;
+
 public class CacheableBitmapDrawable extends BitmapDrawable {
 
     public static final int SOURCE_UNKNOWN = -1;
@@ -252,7 +254,13 @@ public class CacheableBitmapDrawable extends BitmapDrawable {
                 // Record the current method stack just in case
                 mStackTraceWhenRecycled = new Throwable("Recycled Bitmap Method Stack");
 
-                getBitmap().recycle();
+                final Thread thread = Thread.currentThread();
+                Log.w("CacheableBitmapDrawable", "Recycle on thread: " + thread);
+                if (thread == Looper.getMainLooper().getThread()) {
+                    getBitmap().recycle();
+                } else {
+                    throw new ConcurrentModificationException("Don't recycle bitmaps on other threads!");
+                }
             } else {
                 if (Constants.DEBUG) {
                     Log.d(LOG_TAG,
