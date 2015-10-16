@@ -11,6 +11,7 @@ import android.graphics.Shader;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.os.Looper;
 import android.util.Log;
 import com.mapbox.mapboxsdk.tileprovider.MapTile;
 import com.mapbox.mapboxsdk.tileprovider.MapTileLayerBase;
@@ -21,6 +22,8 @@ import com.mapbox.mapboxsdk.views.MapView;
 import com.mapbox.mapboxsdk.views.safecanvas.ISafeCanvas;
 import com.mapbox.mapboxsdk.views.safecanvas.SafePaint;
 import com.mapbox.mapboxsdk.views.util.Projection;
+
+import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import uk.co.senab.bitmapcache.CacheableBitmapDrawable;
 
@@ -318,6 +321,13 @@ public class TilesOverlay extends SafeDrawOverlay {
         // Only recycle if we are running on a project less than 2.3.3 Gingerbread.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.GINGERBREAD) {
             if (mLoadingTileBitmap != null) {
+                final Thread thread = Thread.currentThread();
+                Log.w(TAG, "Recycle on thread: " + thread);
+                if (thread == Looper.getMainLooper().getThread()) {
+                    mLoadingTileBitmap.recycle();
+                } else {
+                    throw new ConcurrentModificationException("Don't recycle bitmaps on other threads!");
+                }
                 mLoadingTileBitmap = null;
             }
         }
