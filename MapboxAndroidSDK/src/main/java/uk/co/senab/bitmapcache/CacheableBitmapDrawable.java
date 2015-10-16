@@ -243,9 +243,12 @@ public class CacheableBitmapDrawable extends BitmapDrawable {
 
             /**
              * If we have been displayed or we don't care whether we have
-             * been or not, then recycle() now. Otherwise, we retry after a delay.
+             * been or not, and this is running on the main thread, then recycle() now.
+             * Otherwise, we retry after a delay.
              */
-            if (mHasBeenDisplayed || ignoreBeenDisplayed) {
+            final Thread mainThread = Looper.getMainLooper().getThread();
+            final Thread thisThread = Thread.currentThread();
+            if ((mHasBeenDisplayed || ignoreBeenDisplayed) && thisThread == mainThread) {
                 if (Constants.DEBUG) {
                     Log.d(LOG_TAG, "Recycling bitmap with url: " + mUrl);
                 }
