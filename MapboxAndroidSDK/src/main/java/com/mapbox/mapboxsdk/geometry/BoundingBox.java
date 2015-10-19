@@ -44,7 +44,7 @@ public final class BoundingBox implements Parcelable, Serializable, MapViewConst
      * @param northEast Coordinate
      * @param southWest Coordinate
      */
-    public BoundingBox(final LatLng northEast, final LatLng southWest) {
+    public BoundingBox(final ILatLng northEast, final ILatLng southWest) {
         this(northEast.getLatitude(), northEast.getLongitude(), southWest.getLatitude(), southWest.getLongitude());
     }
 
